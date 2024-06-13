@@ -3,8 +3,7 @@ Baby Cry Update Code
 
 current plans:
 - test temporal contrastive loss function
-- implement evaluation metrics
-- Augment data using DCASE23 & UrbanSounds8K (half-done, only few examples were used)
+- Synthetic data using DCASE23 & UrbanSounds8K as background to generate new examples. Tools: Scaper or SpatialScaper.
 
 Ben's code
 - transformer architecture that runs very quickly and has an accuracy around 86%
