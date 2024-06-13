@@ -15,8 +15,9 @@ Danning's code:
 - metrics
 
 Mohamed's code:
-- CRNN with temporal contrastive loss (under testing)
+- CRNN with temporal contrastive loss. Has dimensional mismatch problems due to using MFCC as an input to CNN, almost resolved.
+- Custom dataset loader. Great for standardizing data input into our models. Needs to be adapted to use json files (currently uses csv because it's easier to index and retrieve)
 
 BabyCry data uploaded:
 - The names are trimmed to the first 47 characters to avoid conflict.
-- This is because Textgrid names converted _ to - at the end of the file, so we trimmed to keep relevant identification
+- This is because orginal Textgrid names converted _ to - at the end of the file, so we trimmed to keep relevant identification and avoiding mismatch.
