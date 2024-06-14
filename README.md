@@ -6,9 +6,8 @@ current plans:
 - Synthetic data using DCASE23 & UrbanSounds8K as background to generate new examples. Tools: Scaper or SpatialScaper.
 
 Ben's code
-- transformer architecture that runs very quickly and has an accuracy around 86%
-- implements Danning's metrics function so we can get a more accurate accuracy metric (generally around 80%)
-- trains on Ben & Saad's annotations, as well as 10 DCASE non-cry audio sets
+- transformer architecture that runs very quickly and has an accuracy around 86%, now includes batching
+- includes combined IAA files
 
 Danning's code:
 - metrics
