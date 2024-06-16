@@ -59,8 +59,8 @@ import librosa
 # audio_path = os.path.join('/home/benjamin.lambright/Desktop/ugrip/Datasets_to_sort/hungry', audio_name)
 # annotation_path = os.path.join('/home/benjamin.lambright/Desktop/ugrip/Datasets_to_sort/hungry', annotation_name)
 
-annotation_path = "master_annotations/0a983cd2-0078-4698-a048-99ac01eb167a-1433917038889-1.7-f-04-hu.wav.TextGrid"
-audio_path = "baby_audio/0a983cd2-0078-4698-a048-99ac01eb167a-1433917038889-1.7-f-04-hu.wav"
+annotation_path = "/Users/mo-alowais/Documents/master_annotations/0a983cd2-0078-4698-a048-99ac01eb167a-1433917038889-1.7-f-04-hu.wav.TextGrid"
+audio_path = "/Users/mo-alowais/Documents/baby_audio/0a983cd2-0078-4698-a048-99ac01eb167a-1433917038889-1.7-f-04-hu.wav"
 
 # Read annotation
 label_list = readFile(annotation_path)
@@ -115,9 +115,9 @@ def getFiles(path, extension):
                 list_paths.append(os.path.join(root, file))
     return list_paths
 
-annotation_path = 'master_annotations'
+annotation_path = '/Users/mo-alowais/Documents/master_annotations'
 annotation_extension = '.TextGrid'
-audio_path = 'baby_audio'
+audio_path = '/Users/mo-alowais/Documents/baby_audio'
 audio_extension = '.wav'
 
 annotation_files = getFiles(path=annotation_path, extension=annotation_extension)
@@ -137,7 +137,7 @@ audio_files = sorted(audio_files)
 # Mel scale is a way of representing frequencies in a manner similar to human perception. By using Mel filters, the features capture the psychoacoustic properties of the sound.
 
 preemphasis_coef = 0.97 
-frame_length = 0.025 
+frame_length = 0.025
 frame_step = 0.01
 window_function = np.hamming
 num_nfft = 551
@@ -231,27 +231,39 @@ y_train_reshaped = y_train_reshaped.reshape(int(y_train_reshaped.shape[0] / n_fr
 y_test_reshaped = y_test[:int(y_test.shape[0] / n_frames) * n_frames]
 y_test_reshaped = y_test_reshaped.reshape(int(y_test_reshaped.shape[0] / n_frames), n_frames, y_test_reshaped.shape[1])
 
+print(y_train_reshaped.shape)
 X_train_reshaped = X_train_reshaped.reshape((703, 300, 33, 1))
-def temporal_contrastive_loss(predictions, targets, intermediate_rep, alpha1=0.1, alpha2=0.03):
+
+def temporal_contrastive_loss(model, predictions, targets, idx, alpha1=0.1, alpha2=0.03):
+    print("pred shape: ",predictions.shape)
+    print("target shape: ", targets.shape)
+
     bce_loss = F.binary_cross_entropy(predictions, targets)
     
     coherence_loss = 0
-    for i in range(1, targets.size(1)):
-        delta_target = (targets[:, i] - targets[:, i - 1]).abs()
-        delta_rep = (intermediate_rep[:, i] - intermediate_rep[:, i - 1]).pow(2).sum(dim=1)
+    for j in range(1, targets.shape[0]):
+        for i in range(1, targets.shape[1]):
+            delta_target = (targets[j, i] - targets[j, i - 1]).abs()
+            delta_rep = (model.intermediate_rep[j][i] - model.intermediate_rep[j][i - 1]).pow(2).sum(dim=1)
         
-        coherence_loss += alpha1 * (delta_target > 0).float() * delta_rep
-        coherence_loss -= alpha2 * (delta_target == 0).float() * delta_rep
+            coherence_loss += alpha1 * (delta_target > 0).float() * delta_rep
+            coherence_loss -= alpha2 * (delta_target == 0).float() * delta_rep
     
     coherence_loss = coherence_loss.mean()
     total_loss = bce_loss + coherence_loss
     return total_loss
+
+
+
+
 class CRNN_modified(nn.Module):
     def __init__(self, time_steps=703, freq_bins=300, input_channels=33,num_classes=2):
         super(CRNN_modified, self).__init__()
         self.time_steps = time_steps
         self.freq_bins = freq_bins
         self.channels = input_channels
+        self.intermediate_rep = [[[0]]]
+
         self.cnn = nn.Sequential(
             nn.Conv2d(300, 16, kernel_size=3, stride=1, padding=1),
             nn.GLU(dim=1),
@@ -269,14 +281,14 @@ class CRNN_modified(nn.Module):
             nn.GLU(dim=1),
             # nn.MaxPool2d((1, 4)),
             
-            nn.Conv2d(64, 128, kernel_size=3, stride=1, padding=1),  # change 128 to 64 due to GLU halving channels
+            nn.Conv2d(64, 600, kernel_size=3, stride=1, padding=1),  # change 128 to 64 due to GLU halving channels
             nn.GLU(dim=1),
             # nn.MaxPool2d((1, 4))
         )
         
         
-        self.rnn = nn.GRU(33, 16, num_layers=2, bidirectional=True, batch_first=False)
-        self.fc = nn.Linear(32, num_classes)
+        self.rnn = nn.GRU(33, 33, num_layers=1, bidirectional=False, batch_first=False)
+        self.fc = nn.Linear(33, num_classes)
     
     def forward(self, x):
         
@@ -291,13 +303,16 @@ class CRNN_modified(nn.Module):
         batch_size = x.size(0)
         x = self.cnn(x)
         
-        z_intr = torch.flatten(input=x) 
+                
         print("shape: ",x.shape)
-        x = x.reshape(703, 64, 33)
+        x = x.reshape(703, 300, 33)
+        self.intermediate_rep.append(x)
         x, _ = self.rnn(x)
         x = self.fc(x)
+
+
         x = torch.sigmoid(x)
-        return x, z_intr 
+        return x
     
 device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
 torch.tensor(X_train_reshaped, dtype=torch.float).to(device).shape
@@ -330,15 +345,19 @@ T_mult = 2  # Multiplicative factor by which the number of epochs for every subs
 scheduler = CosineAnnealingWarmRestarts(optimizer, T_0=T_0, T_mult=T_mult)
 
 # epoch num
-num_epochs = 20
+num_epochs = 10
 
+index_loss = 1 # for intermediate function
 for epoch in range(num_epochs):
     # Forward pass
-    output, z_intr = model(query_input_tensor)
+    output = model(query_input_tensor)
 
+    print(output.shape)
+    print("target tensor: ",target_tensor.shape)
     # Compute the loss
-    loss = temporal_contrastive_loss(output, target_tensor, z_intr)
 
+    loss = temporal_contrastive_loss(model, output, target_tensor, index_loss)
+    index_loss += 1
     # Backward pass and optimization
     optimizer.zero_grad()
     loss.backward()
