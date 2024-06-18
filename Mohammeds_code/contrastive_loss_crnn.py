@@ -241,16 +241,25 @@ def temporal_contrastive_loss(model, predictions, targets, idx, alpha1=0.1, alph
     bce_loss = F.binary_cross_entropy(predictions, targets)
     
     coherence_loss = 0
-    for j in range(1, targets.shape[0]):
+
+ 
+    for j in range(targets.shape[0]):
         for i in range(1, targets.shape[1]):
-            delta_target = (targets[j, i] - targets[j, i - 1]).abs()
-            delta_rep = (model.intermediate_rep[j][i] - model.intermediate_rep[j][i - 1]).pow(2).sum(dim=1)
-        
-            coherence_loss += alpha1 * (delta_target > 0).float() * delta_rep
-            coherence_loss -= alpha2 * (delta_target == 0).float() * delta_rep
-    
+                # breakpoint()
+
+                delta_target = (targets[j, i] - targets[j, i - 1]).abs()
+                # breakpoint()
+                delta_rep = (model.intermediate_rep[idx][j][i] - model.intermediate_rep[idx - 1][j][i])
+                delta_rep = delta_rep.pow(2).sum()
+                    
+                coherence_loss += alpha1 * (delta_target[0] > 0).float() * delta_rep
+                coherence_loss -= alpha2 * (delta_target[0] == 0).float() * delta_rep
+
+    # breakpoint()        
     coherence_loss = coherence_loss.mean()
+    # breakpoint()
     total_loss = bce_loss + coherence_loss
+    
     return total_loss
 
 
@@ -262,7 +271,7 @@ class CRNN_modified(nn.Module):
         self.time_steps = time_steps
         self.freq_bins = freq_bins
         self.channels = input_channels
-        self.intermediate_rep = [[[0]]]
+        self.intermediate_rep = [torch.zeros((703, 300, 33))]
 
         self.cnn = nn.Sequential(
             nn.Conv2d(300, 16, kernel_size=3, stride=1, padding=1),
@@ -356,16 +365,17 @@ for epoch in range(num_epochs):
     print("target tensor: ",target_tensor.shape)
     # Compute the loss
 
-    loss = temporal_contrastive_loss(model, output, target_tensor, index_loss)
-    index_loss += 1
     # Backward pass and optimization
     optimizer.zero_grad()
+
+    loss = temporal_contrastive_loss(model, output, target_tensor, idx=index_loss)
     loss.backward()
     optimizer.step()
 
     # update the learning rate
     scheduler.step()
 
+    index_loss += 1
     # Print loss for monitoring
     print(f'Epoch [{epoch+1}/{num_epochs}], Loss: {loss.item():.4f}')
     
