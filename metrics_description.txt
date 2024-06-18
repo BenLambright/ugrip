@@ -1,0 +1,65 @@
+Segment-based F-score and Event-based F-score is inspired by the paper "Metrics for Polyphonic Sound Event Detection".
+
+Motivation
+
+One can not valid the performance of the model used in sound event detection by using the frame accuracy and f-score
+because the temporal information of the sound event is not being included in the evalution steps. Instead of using the metrics that
+consider each frame as the individual to evaluate, a conprehensive way of capturing the performance within certain time section is 
+needed.
+
+Structure
+
+1. Segement-based Metrics
+Input: 
+- y_true: the ground truth label (an array of frame with 0 or 1)
+- y_pred: the prediction from the model (an array of frame with 0 or 1)
+- num_segment: the number of segements result after cutting y_true and y_pred
+
+Steps:
+- Length check: If y_true and y_pred are not the same length, throw an error.
+- Initialization: Initialize the true positive, false positive and false negative as zero.
+- Data preparation: Cut the y_true and y_pred into desired number of segments.
+- Calculation: (1) Relabel the segements based on the number positive and negative labels in each segment.
+               (2) Compare the segment labels of ground truth and predictions to get true positive, false positive and false negative.
+               (3) Use the true positive, false positive and false negative to calculate the new f-score.
+
+Output:
+- true positive: segments indicated as active by both the ground truth and system output
+- false positive: segements indicated as active by system output but inactive by the ground truth
+- false negative: segments indicated as inactive by the system output but active by the group truth
+- f_score: Calcuate with standard f1 score formula but with segment-based tp, fp and fn
+
+2. Event-based Metrics
+Input:
+- y_true: the ground truth label (an array of frame with 0 or 1)
+- y_pred: the prediction from the model (an array of frame with 0 or 1)
+- tolerance: the difference in the number of time frames allowed between y_true and y_pred on each side
+- overlap_thresold: the minimum percentage of overlapping to be considered as the detected event
+
+Steps:
+- Initialization: (1) Initialize two empty lists for storing the time indexs of true sound events and predicted sound events
+                  (2) Initialize true_positve, false_positive, false_negative
+                  (3) Initialize three empty lists for storing the time indexs of detected events, fake events and undetected events
+- Data preparation: (1) For any time section that contains continuous 1 label, store the start and end time indexs into the list. 
+                    Apply this to both y_true and y_pred.
+                    (2) Deep copy the predicted sound events list for the checking later.
+- Calculation: (1) The double for loop that iterate through the real sound events and the predicted sound events
+               (2) Initialize the number for counting the detected events
+               (3) Set the lower bound and upper bound of each real events using the tolerance
+               (4) Initialize the overlap rate, calculate it of the present real event and present predicted event if the present real 
+               event is within lower bound and upper bound range.
+               (5) If the overlap rate is larger than the threshold, remove the present predicted event from the checked list by deep copy. 
+               In additin if the present real event has not been detected, then label the real event as detected.
+               (6) After iterating each real event, if the event has not been detected, label it as undetected.
+               (7) After all iterations, if there is any predicted events left in the checking list, label them as fake events.
+               (8) Use the number detected, undetected and fake events as true positive, false negative and false positive; 
+               and calculate the event-based f-score according to these numbers.
+
+Output:
+- true positive: correctly detected events
+- false positive: events in prediction that are not correct according to the definition
+- false negative: events in true label that have not been correctly detected according to the definition
+- f_score: Calcuate with standard f1 score formula but with event-based tp, fp and fn
+- counted events: list of time sections of detected events
+- fake events: list of time sections of fake events
+- undetected events: list of time sections of undetected events
